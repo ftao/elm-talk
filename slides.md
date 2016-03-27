@@ -192,7 +192,7 @@ dot' =
 ---
 
 
-## Currying / Partial Apply
+## Partial Apply / Function composition 
 
 ```elm
 import String
@@ -201,6 +201,14 @@ threeTimes = String.repeat 3
 
 threeTimes "hi"
 -- "hihihi" : String
+
+not << isEven << sqrt
+-- \n -> not (isEven (sqrt n))
+
+sqrt >> isEven >> not
+-- \n -> not (isEven (sqrt n))
+
+
 ```
 
 note: used in event handler / address 
@@ -209,23 +217,34 @@ note: used in event handler / address
 ---
 
 
+## Any Questions about syntax ? 
+
+note: answer any question about syntax, only introduce the necessary concept
+
+---
+
+
 ## The Elm Architecture
 
-  The Elm Architecture is a **simple** pattern for infinitely **nestable** components. 
-  It is great for **modularity, code reuse, and testing**. 
-  Ultimately, this pattern makes it easy to create complex web apps in a way that stays modular. 
+ - The Elm Architecture is a **simple** pattern for infinitely **nestable** components. 
+ - It is great for **modularity, code reuse, and testing**. 
+ - Ultimately, this pattern makes it easy to create complex web apps in a way that stays modular. 
+
+note: 
+  - link: https://github.com/evancz/elm-architecture-tutorial/
+  - Nestable ? how to explain ? dom tree ? 
+  - Modularity ? how to explain ?
+  - Code Resue ? how to explain ?
+  - Testing  - pure funciton, side effects as data 
 
 
 ---
 
 
-Every component look the same way
+![elm-architecture](https://raw.githubusercontent.com/evancz/elm-architecture-tutorial/master/diagrams/signal-graph-summary.png)
 
- * model - application state
- * view  - render model to html
- * update  - update the model for given action
 
-note: https://github.com/evancz/elm-architecture-tutorial/
+note: for every level 
 
 
 ---
@@ -233,12 +252,10 @@ note: https://github.com/evancz/elm-architecture-tutorial/
 
 ```elm
 -- MODEL
-
 type alias Model = { ... }
 
 
 -- UPDATE
-
 type Action = Reset | ...
 
 update : Action -> Model -> (Model, Effects Action)
@@ -248,13 +265,64 @@ update action model =
     ...
 
 -- VIEW
-
 view : Address Action -> Model -> Html
-view =
+view address model =
   ...
 ```
 
+note: 
+  - model - application state
+  - view  - render model to html
+  - update  - update the model for given action
+
+
 ---
+
+
+## model
+
+```elm
+type alias Model =
+  { topic : String
+  , gifUrl : String
+  }
+
+
+init : String -> ( Model, Effects Action )
+init topic =
+  ( Model topic "assets/waiting.gif"
+  , getRandomGif topic
+  )
+```
+
+note:  discuss Effects later 
+
+---
+
+
+## view
+
+```elm
+view : Signal.Address Action -> Model -> Html
+view address model =
+  div
+    [ style [ "width" => "200px" ] ]
+    [ h2 [ headerStyle ] [ text model.topic ]
+    , div [ imgStyle model.gifUrl ] []
+    , button [ onClick address RequestMore ] [ text "More Please!" ]
+    ]
+```
+
+`Signal.Address Action` = 
+    an `Adress` which accept message with type `Action`.
+
+note: 
+   the address is used by __outside world__ to send action into elm land 
+   address is passed in by outside world
+
+
+---
+
 
 ## Side Effects as Data
 
@@ -280,32 +348,9 @@ Http.get decodeResponse (randomUrl topic)
 
 note: example http request, should be 
       when the side effects finished, the runtime will send a `Action` update back. 
-
----
-
-## view
-
-```elm
-type Action = Increment | Decrement
-
--- view 
-view : Signal.Address Action -> Model -> Html
-view address model =
-  div []
-    [ button [ onClick address Decrement ] [ text "-" ]
-    , div [ ] [ text (toString model) ]
-    , button [ onClick address Increment ] [ text "+" ]
-    ]
-```
-
-`Signal.Address Action` = 
-    an `Adress` which accept message with type `Action`.
-
-
----
-
-
-![elm-architecture](https://raw.githubusercontent.com/evancz/elm-architecture-tutorial/master/diagrams/signal-graph-summary.png)
+      decodeResponse should return `String`
+      Task.toMabye turn error into `Maybe.Nothing`
+      compare to callback, the problem of callback is hard to reason, what will happen when the callback is excuted 
 
 
 ---
@@ -314,19 +359,17 @@ view address model =
 ## Component Composition - model
 
 ```elm
-
 type alias Model =
-    { todoList : List (Int, Todo.Model)
-    , uid : Int
-    , newTodo: String
-    }
+  { topic : String
+  , gifList : List ( Int, RandomGif.Model )
+  , uid : Int
+  }
 
-init = 
-  ( { todoList : []
-    , uid : 0
-    , newTodo: ""
-    } 
-  , Effects.None
+
+init : ( Model, Effects Action )
+init =
+  ( Model "" [] 0
+  , Effects.none
   )
 
 ```
@@ -338,20 +381,40 @@ init =
 ## Component Composition - update
 
 ```
-type Action 
-  = Create
-  | SubMsg Int Todo.Action
+type Action
+  = Topic String
+  | Create
+  | SubMsg Int RandomGif.Action
 
-update : Action -> Model -> (Model, Effects Action)
-update action model =
-  case action of
-    Create -> ...
-    SubMsg id action ->
+
+update : Action -> Model -> ( Model, Effects Action )
+update message model =
+  case message of
+    Topic topic ->
+      ...
+    Create ->
+      ...
+    SubMsg msgId msg ->
       let
-        subModel, subEffect = Todo.update action (getById id model.todoList)
+        subUpdate (( id, randomGif ) as entry) =
+          if id == msgId then
+            let
+              ( newRandomGif, fx ) =
+                RandomGif.update msg randomGif
+            in
+              ( ( id, newRandomGif )
+              , map (SubMsg id) fx
+              )
+          else
+            ( entry, Effects.none )
+
+        ( newGifList, fxList ) =
+          model.gifList
+            |> List.map subUpdate
+            |> List.unzip
       in
-        ( { model | todoList = setById id subModel model.todoList }
-        , Effects.map (SubMsg id) subEffect
+        ( { model | gifList = newGifList }
+        , batch fxList
         )
 
 ```
@@ -365,21 +428,30 @@ update action model =
 ```
 view : Signal.Address Action -> Model -> Html
 view address model =
-  let 
-     todoList = model.todoList |>  renderTodo
-  in 
-    div [ style [ ("display", "flex") ] ]
-        todoList 
+  div
+    []
+    [ input
+        [ placeholder "What kind of gifs do you want?"
+        , value model.topic
+        , onEnter address Create
+        , on "input" targetValue (Signal.message address << Topic)
+        ]
+        []
+    , div
+        []
+        (List.map (elementView address) model.gifList)
+    ]
 
-renderTodo address (id, model) =
-  let 
-    subAddress = Signal.forwardTo address (SubMsg id)
-  in 
-    Todo.view subAddress model
-  
+
+elementView : Signal.Address Action -> ( Int, RandomGif.Model ) -> Html
+elementView address ( id, model ) =
+  RandomGif.view (Signal.forwardTo address (SubMsg id)) model
 ```
 
-note: explain sub address
+note: 
+  `forwardTo : Address b -> (a -> b) -> Address a`
+  Create a new address. This address will tag each message it receives and then forward it along to some other address.
+  explain sub address
 
 
 ---
@@ -388,8 +460,11 @@ note: explain sub address
 ## StartApp 
 
 ```elm
-import TodoList exposing (init, update, view)
+import Effects exposing (Never)
+import RandomGifList exposing (init, update, view)
 import StartApp
+import Task
+
 
 app =
   StartApp.start
@@ -399,10 +474,28 @@ app =
     , inputs = []
     }
 
+
 main =
   app.html
 
+
+port tasks : Signal (Task.Task Never ())
+port tasks =
+  app.tasks
+
 ```
+
+note: explain port , replace RandomGifList to your module
+
+
+---
+
+
+## Any thoughts ? 
+
+
+note: ask the audience, what do you think ? 
+
 
 ---
 
