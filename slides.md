@@ -23,13 +23,12 @@ note: We do not need introduce Signal / Effect in The Elm Architecture
 
 ## What is Elm ? 
 
- >> the best of functional programming in your browser
+ > the best of functional programming in your browser
 
- - static typed pure functional programing language
+ - static typed pure functional language
  - designed for building web applictions
- - builtin *reactivity*
+ - reactive by design (First Order FRP)
  - compile to javascript
- - First Order FRP
 
 
 ---
@@ -491,40 +490,23 @@ note: explain port , replace RandomGifList to your module
 ---
 
 
-## Any thoughts ? 
-
-
-note: ask the audience, what do you think ? 
-
-
----
-
-
  - The Elm Architecture is a **simple** pattern for infinitely **nestable** components. 
  - It is great for **modularity, code reuse, and testing**. 
  - Ultimately, this pattern makes it easy to create complex web apps in a way that stays modular. 
 
 
+note: ask the audience, do they understand the key points
+
+
 ---
 
 
-## What's Great about this ? 
+## Any thoughts ? 
 
- - It's Simple 
- - Easy to navigate the codebase 
- - Easy to debug, easy to locate the possible bug location 
-
-
-NEED UPDATE 
-
- - It is quite simple 
- - But a lot of boilerplate code 
-
-
-note: do we need write similiar code in other framework / language
-   in oo, we build the tree of component, 
-   in javascript ? html ? the nested is express in template language / html
-   many time 
+note: more discussion
+  - But a lot of boilerplate code 
+  - how the nested structure expressed in other language 
+    html structure ? 
 
 
 ---
@@ -532,7 +514,48 @@ note: do we need write similiar code in other framework / language
 
 ## Behind the Magic 
 
-Signal Process Network 
+<div style="background:white">
+![Signal Process Network](http://elm-lang.org/assets/diagrams/overall-architecture.png)
+</div>
+
+
+note: the core logic is pure functional, the runtime handle the message passing 
+
+
+---
+
+
+## Static Signal Graph 
+
+input signal
+  - keyborad 
+  - mouse
+  - http response 
+  - other events
+
+output signal
+  - ui (virtual dom)
+  - http request 
+  - db/storage request
+  - ....
+
+note: remeber address 
+  do we need a example without StartApp
+
+
+---
+
+
+## Signal
+
+
+---
+
+## what is task ??
+
+## Problem
+
+ - other web platform techlogy support
 
 
 ---
