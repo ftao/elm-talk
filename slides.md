@@ -4,221 +4,201 @@
 ---
 
 
-## Contents
-
- * What is Elm
- * Elm Basics
- * The Elm Architecture 
- * Functional Reactive Programming
- * Is it ready for real world product 
- * Real world Example
- * Why Elm ? 
- * QA
+* Functional Reactive Programming 
+* Elm
 
 
-note: We do not need introduce Signal / Effect in The Elm Architecture 
-
----
-
-
-## What is Elm ? 
-
- > the best of functional programming in your browser
-
- - static typed pure functional language
- - designed for building web applictions
- - reactive by design (First Order FRP)
- - compile to javascript
+note: That is the purpose of this talk, 
+      Elm and Functional Reactive Programming is worth learning . 
+      will not try to cover everything 
+      Two things , two much ??
 
 
 ---
 
 
-## Elm Basics
+## Frontend  development is hard
 
- * Int / Float / Bool / Char / String
- * Tuple 
- * List
- * Union Types
- * Records
+* Frontend Web App/SPA is so complex nowdays!
+  - Hard to build 
+  - Hard to test
+  - Hard to reason
+* JavaScript is terriable language 
 
-note: only introduce the part that needed for elm-architecture
 
 ---
 
 
-## Basic Types
+Functional Reactive Programming might be the solution
+
+
+---
+
+
+## What is a Frontend App ? 
+
+
+A black box with input
+  - user interactions (mouse move, click, keyboard ...)
+  - server response (ajax response, websockt ...)
+
+and with output
+  - dom / ui
+  - server request
+  - ...
+
+
+---
+
+
+<div style="background:white">
+![Signal Process Network](http://elm-lang.org/assets/diagrams/overall-architecture.png)
+</div>
+
+
+Note: The main idea is that the vast majority of our application logic can be described in terms of the Elm Architecture, 
+      allowing us to make the most of stateless functions and immutability. 
+      In this realm we use signals to route events to the right place.
+
+      When we want to have some effect on the world, we create a service totally separate from our core logic. 
+      Each service may be in charge of a specific task, like managing database connections or communicating via websockets. 
+      We script all of these effects with tasks.
+
+
+
+---
+
+
+Core Logic = Static Processing Network 
+<div style="background:white">
+![Signal Process Network](http://elm-lang.org/assets/diagrams/signals.png)
+</div>
+
+
+Note:
+  You can think of signals as setting up a static processing network, 
+  where a fixed set of inputs receive messages that propagate through the network, 
+  ultimately leading to outputs that handle stuff like efficiently rendering things on screen.
+
+  (Next Introduce Some Concept in order to express this)
+
+  This part is pure functional, only the foldp has some states
+
+
+---
+
+
+## Signal
+
+> A signal is a value that changes over time. 
+
 
 ```elm
-13
-13.0
-True
-'a'
-'ABC'
-[1, 2, 3]
-('A', True)
+Mouse.position : Signal (Int,Int)
+```
+
+```elm
+main : Signal Html
+```
+
+Note: so we need a concept of signal
+
+
+---
+
+
+## Program with Signals
+
+
+```elm
+map : (a -> b) -> Signal a -> Signal b
+filter : (a -> Bool) -> a -> Signal a -> Signal a
+merge : Signal a -> Signal a -> Signal a
+foldp : (a -> s -> s) -> s -> Signal a -> Signal s
+```
+
+You don't write function that operate on signal, 
+You write function that operate on element of the signal.
+
+Note: how to deal with signals ? 
+      State is all about current value depends on history values
+
+
+
+---
+
+
+## Adress & Mailbox
+
+```
+type alias Mailbox a = 
+    { address : Address a
+    , signal : Signal a
+    }
+A Mailbox is a communication hub. It is made up of
+
+an Address that you can send messages to
+a Signal of messages sent to the mailbox
 ```
 
 
----
-
-## Union Types
-
-```elm
-type User = Anonymous | LoggedIn String
-type Maybe a = Just a | Nothing
-type List a = Empty | Node a (List a)
-
-userPhoto : User -> String
-userPhoto user =
-    case user of
-      Anonymous ->
-          "anon.png"
-
-      LoggedIn name ->
-          "users/" ++ name ++ "/photo.png"
-
-```
-
-note: type is used to make contracts
-  union types can be used to exporess complex contracts
-  http://elm-lang.org/guide/model-the-problem
+Note: How address are used ? 
 
 
 ---
 
 
-## Records
+## How Mailbox is Used ?
+
+ * create a mailbox on init
+ * make the signal of the mailbox as input of the core logic
+ * core logic may output some __Effects__
+ #- do this thing, and after you finished it send the result to this address
+ * service will execute the __Effects__ , and send the result to that address
+
+Note: 
+  talk about the address again in event handler
+
+
+---
+
+
+## The Elm Architecture
 
 ```elm
-point =                    -- create a record
-  { x = 3, y = 4 }
+-- MODEL
+type alias Model = { ... }
+init : (Model, Effects Action)
 
-point.x                    -- access field
+-- UPDATE
+type Action = Reset | ...
+update : Action -> Model -> (Model, Effects Action)
+update action model =
+  case action of
+    Reset -> ...
+    ...
 
-map .x [point,{x=0,y=0}]   -- field access function
+-- VIEW
+view : Address Action -> Model -> Html
+view address model =
+  ...
 
-{ point | x = 6 }          -- update a field
-
-{ point |                  -- update many fields
-    x = point.x + 1,
-    y = point.y + 1
-}
-
-dist {x,y} =               -- pattern matching on fields
-  sqrt (x^2 + y^2)
-
-type alias Location =      -- type aliases for records
-  { line : Int
-  , column : Int
-  }
 ```
-
 
 note: 
-  like object, not dict, more like c struct 
-  http://elm-lang.org/docs/records
+  - model - application state
+  - init  - application state, init action
+  - view  - render model to html
+  - update  - update the model for given action
 
 
 ---
 
 
-## Define Functions
+![elm-architecture](https://raw.githubusercontent.com/evancz/elm-architecture-tutorial/master/diagrams/signal-graph-summary.png)
 
-```elm
-square n =
-  n^2
+note: for every level 
 
-hypotenuse a b =
-  sqrt (square a + square b)
-
-distance (a,b) (x,y) =
-  hypotenuse (a-x) (b-y)
-
-(?) : Maybe a -> a -> a
-(?) maybe default =
-  Maybe.withDefault default maybe
-
-infixr 9 ?
-
-\x = x * 2
-```
-
----
-
-
-## Apply Functions
-
-```elm
--- alias for appending lists and two lists
-append xs ys = xs ++ ys
-xs = [1,2,3]
-ys = [4,5,6]
-
--- All of the following expressions are equivalent:
-a1 = append xs ys
-a2 = (++) xs ys
-
-b1 = xs `append` ys
-b2 = xs ++ ys
-
-c1 = (append xs) ys
-c2 = ((++) xs) ys
-```
-
-
----
-
-
-## Apply Functions
-
-```elm
-
-f <| x = f x
-x |> f = f x
-
-dot =
-  scale 2 (move (20,20) (filled blue (circle 10)))
-
-dot' =
-  circle 10
-    |> filled blue
-    |> move (20,20)
-    |> scale 2
-```
-
-
----
-
-
-## Partial Apply / Function composition 
-
-```elm
-import String
-threeTimes = String.repeat 3
--- <function> : String -> String
-
-threeTimes "hi"
--- "hihihi" : String
-
-not << isEven << sqrt
--- \n -> not (isEven (sqrt n))
-
-sqrt >> isEven >> not
--- \n -> not (isEven (sqrt n))
-
-
-```
-
-note: used in event handler / address 
-
-
----
-
-
-## Any Questions about syntax ? 
-
-note: answer any question about syntax, only introduce the necessary concept
 
 ---
 
@@ -235,44 +215,6 @@ note:
   - Modularity ? how to explain ?
   - Code Resue ? how to explain ?
   - Testing  - pure funciton, side effects as data 
-
-
----
-
-
-![elm-architecture](https://raw.githubusercontent.com/evancz/elm-architecture-tutorial/master/diagrams/signal-graph-summary.png)
-
-
-note: for every level 
-
-
----
-
-
-```elm
--- MODEL
-type alias Model = { ... }
-
-
--- UPDATE
-type Action = Reset | ...
-
-update : Action -> Model -> (Model, Effects Action)
-update action model =
-  case action of
-    Reset -> ...
-    ...
-
--- VIEW
-view : Address Action -> Model -> Html
-view address model =
-  ...
-```
-
-note: 
-  - model - application state
-  - view  - render model to html
-  - update  - update the model for given action
 
 
 ---
@@ -484,7 +426,7 @@ port tasks =
 
 ```
 
-note: explain port , replace RandomGifList to your module
+note: remote this slide, explain port
 
 
 ---
@@ -512,59 +454,250 @@ note: more discussion
 ---
 
 
-## Behind the Magic 
+## Ports
 
-<div style="background:white">
-![Signal Process Network](http://elm-lang.org/assets/diagrams/overall-architecture.png)
-</div>
+A generic way of communicate between elm land and javascript land.
+
+From JavaScript to Elm
+
+```elm
+port somePort: Signal String
+```
+
+From Elm to JavaScript
+
+```
+port requestUser : Signal String
+port requestUser =
+    signalOfUsersWeWantMoreInfoOn
+```
 
 
-note: the core logic is pure functional, the runtime handle the message passing 
+note: 
+    need some basic examples
+    write
+    ```
+    runningElmModule.ports.spy
+    ```
+
+---
+
+
+Let's talk about the language itself
 
 
 ---
 
 
-## Static Signal Graph 
+## What is Elm ? 
 
-input signal
-  - keyborad 
-  - mouse
-  - http response 
-  - other events
+ > the best of functional programming in your browser
+ > it is easy to learn 
 
-output signal
-  - ui (virtual dom)
-  - http request 
-  - db/storage request
-  - ....
-
-note: remeber address 
-  do we need a example without StartApp
+ - static typed pure functional language
+ - designed for building web applictions
+ - reactive by design (First Order FRP)
+ - compile to javascript
 
 
 ---
 
 
-## Signal
+## Elm Basics
+
+ * Int / Float / Bool / Char / String
+ * Tuple 
+ * List
+ * Union Types
+ * Records
+
+note: only introduce the part that needed for elm-architecture
 
 
 ---
 
-## what is task ??
 
-## Problem
+## Basic Types
 
- - other web platform techlogy support
+```elm
+13
+13.0
+True
+'a'
+'ABC'
+[1, 2, 3]
+('A', True)
+```
+
+
+---
+
+## Union Types
+
+```elm
+type User = Anonymous | LoggedIn String
+type Maybe a = Just a | Nothing
+type List a = Empty | Node a (List a)
+
+userPhoto : User -> String
+userPhoto user =
+    case user of
+      Anonymous ->
+          "anon.png"
+
+      LoggedIn name ->
+          "users/" ++ name ++ "/photo.png"
+
+```
+
+note: type is used to make contracts
+  union types can be used to exporess complex contracts
+  http://elm-lang.org/guide/model-the-problem
 
 
 ---
 
 
-## Why Elm ? 
+## Records
 
-easy to understand / easy to reason / reduce complex 
-how many time do you speed in understand old code
+```elm
+point =                    -- create a record
+  { x = 3, y = 4 }
+
+point.x                    -- access field
+
+map .x [point,{x=0,y=0}]   -- field access function
+
+{ point | x = 6 }          -- update a field
+
+{ point |                  -- update many fields
+    x = point.x + 1,
+    y = point.y + 1
+}
+
+dist {x,y} =               -- pattern matching on fields
+  sqrt (x^2 + y^2)
+
+type alias Location =      -- type aliases for records
+  { line : Int
+  , column : Int
+  }
+```
+
+
+note: 
+  like object, not dict, more like c struct 
+  http://elm-lang.org/docs/records
+
+
+---
+
+
+## Parameter Type
+
+FIXME: how to explain this , very hard 
+c++/java generic type ?? 
+
+
+---
+
+
+## Define Functions
+
+```elm
+square n =
+  n^2
+
+hypotenuse a b =
+  sqrt (square a + square b)
+
+distance (a,b) (x,y) =
+  hypotenuse (a-x) (b-y)
+
+(?) : Maybe a -> a -> a
+(?) maybe default =
+  Maybe.withDefault default maybe
+
+infixr 9 ?
+
+\x = x * 2
+```
+
+---
+
+
+## Apply Functions
+
+```elm
+-- alias for appending lists and two lists
+append xs ys = xs ++ ys
+xs = [1,2,3]
+ys = [4,5,6]
+
+-- All of the following expressions are equivalent:
+a1 = append xs ys
+a2 = (++) xs ys
+
+b1 = xs `append` ys
+b2 = xs ++ ys
+
+c1 = (append xs) ys
+c2 = ((++) xs) ys
+```
+
+
+---
+
+
+## Apply Functions
+
+```elm
+
+f <| x = f x
+x |> f = f x
+
+dot =
+  scale 2 (move (20,20) (filled blue (circle 10)))
+
+dot' =
+  circle 10
+    |> filled blue
+    |> move (20,20)
+    |> scale 2
+```
+
+
+---
+
+
+## Partial Apply / Function composition 
+
+```elm
+import String
+threeTimes = String.repeat 3
+-- <function> : String -> String
+
+threeTimes "hi"
+-- "hihihi" : String
+
+not << isEven << sqrt
+-- \n -> not (isEven (sqrt n))
+
+sqrt >> isEven >> not
+-- \n -> not (isEven (sqrt n))
+
+
+```
+
+note: used in event handler / address 
+
+
+---
+
+
+## Any Questions about syntax ? 
+
+note: answer any question about syntax, only introduce the necessary concept
 
 
 ---
