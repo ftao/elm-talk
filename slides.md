@@ -273,7 +273,8 @@ Note: The main idea is that the vast majority of our application logic can be de
 ---
 
 
-Core Logic = Static Processing Network 
+## Core Logic = Static Processing Network 
+
 <div style="background:white">
 ![Signal Process Network](http://elm-lang.org/assets/diagrams/signals.png)
 </div>
@@ -298,10 +299,6 @@ Note:
 
 ```elm
 Mouse.position : Signal (Int,Int)
-```
-
-```elm
-main : Signal Html
 ```
 
 Note: so we need a concept of signal
@@ -350,11 +347,65 @@ Note: How address are used ?
 ---
 
 
-## How Mailbox is Used ?
+## Task
 
- * [runtime] create a mailbox on init
- * [runtime] make the `mailbox.signal` as input of the core logic
- * [core] core logic may output some __Effects__
+Tasks make it easy to describe asynchronous operations that may fail, like HTTP requests or writing to a database.
+Tons of browser APIs are described as tasks in Elm
+
+Note: Task are data 
+
+
+---
+
+
+## Signal.Send 
+
+```elm
+send : Address a -> a -> Task x ()
+
+type Action = Undo | Remove Int
+
+address : Address Action
+
+requestUndo : Task x ()
+requestUndo =
+    send address Undo
+```
+
+
+---
+
+
+## How it works 
+
+User land 
+
+  1. init mode / state
+  2. init mailbox
+  3. make input\_signals (include mailbox.signal and other inputs)
+  4. `foldp` with 
+      - inputs = (init\_state , input\_signals) as inputs
+      - output = Signal (model, task)
+  5. generate view from model 
+  6. pass task (with a address to send back result) to runtime
+
+
+Runtime land
+
+  - wait for Task
+  - execute it  
+  - when funished, send result back to `mailbox.address`
+
+
+
+---
+
+
+## How it works 
+
+ * create a mailbox on init
+ * make the `mailbox.signal` as input of the core logic
+ * core logic may output some Task 
  * [runtime] will ask the service to make the __Effects__ happen, and send the result to `mailbox.address`
 
 Note: 
